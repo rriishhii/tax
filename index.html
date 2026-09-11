@@ -1,0 +1,2220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Property Records Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --surface-card: #f8fafc;
+    --surface-hover: #e2e8f0;
+    --surface-input: #ffffff;
+    --border: #cbd5e1;
+    --border-strong: #94a3b8;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --accent: #0284c7;
+    --accent-hover: #0369a1;
+    --accent-glow: rgba(2, 132, 199, 0.18);
+    --success: #059669;
+    --success-hover: #047857;
+    --warning: #d97706;
+    --warning-hover: #b45309;
+    --danger: #dc2626;
+    --danger-hover: #b91c1c;
+    --purple: #7c3aed;
+    --purple-hover: #6d28d9;
+    --teal: #0d9488;
+    --teal-hover: #0f766e;
+    --slate: #475569;
+    --slate-hover: #334155;
+    --shadow-sm: 0 1px 3px rgba(15,23,42,0.08);
+    --shadow-md: 0 4px 14px rgba(15,23,42,0.10);
+    --shadow-lg: 0 16px 32px rgba(15,23,42,0.16);
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 6px 12px;
+    background: radial-gradient(circle at top right, #ffffff, var(--bg) 80%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13.5px;
+    color: var(--text-primary);
+    min-height: 100vh;
+    width: 100%;
+  }
+
+  /* Theme-Matched Floating Toast Container */
+  #toast-container {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    width: 90%;
+    max-width: 440px;
+  }
+
+  .toast {
+    pointer-events: auto;
+    padding: 10px 16px;
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+    transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .toast-success { background: var(--success); }
+  .toast-danger { background: var(--danger); }
+  .toast-info { background: var(--accent); }
+  .toast-warning { background: var(--warning); }
+
+  /* Selection Modal Overlay & Card Enhancements */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: fadeInModal 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    padding: 28px 24px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    animation: popInModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes popInModal {
+    from { transform: scale(0.94) translateY(8px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+  }
+
+  .modal-icon-badge {
+    width: 48px;
+    height: 48px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .modal-icon-badge svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+  }
+
+  .modal-card h3 {
+    margin: 0 0 6px 0;
+    color: var(--text-primary);
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+  }
+
+  .modal-card p {
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    margin: 0 0 20px 0;
+    line-height: 1.45;
+  }
+
+  /* Custom Select Wrapper for Modal */
+  .modal-select-wrapper {
+    position: relative;
+    margin-bottom: 24px;
+  }
+
+  .modal-select-wrapper select {
+    width: 100%;
+    height: 42px;
+    padding: 0 38px 0 38px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background-color: var(--surface-input);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    transition: all 0.2s var(--ease);
+  }
+
+  .modal-select-wrapper select:hover {
+    border-color: var(--border-strong);
+    background-color: var(--surface-hover);
+  }
+
+  .modal-select-wrapper select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    background-color: var(--surface);
+  }
+
+  .modal-select-wrapper .select-icon-left {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    fill: var(--text-secondary);
+    pointer-events: none;
+  }
+
+  /* Redesigned Proceed Button */
+  .btn-proceed {
+    width: 100%;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(2, 132, 199, 0.24);
+    transition: all 0.15s var(--ease);
+  }
+
+  .btn-proceed:hover:not(:disabled) {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.32);
+  }
+
+  .btn-proceed:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(2, 132, 199, 0.2);
+  }
+
+  .btn-proceed:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+  }
+
+  .btn-proceed svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    transition: transform 0.15s var(--ease);
+  }
+
+  .btn-proceed:hover:not(:disabled) svg {
+    transform: translateX(3px);
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 100% !important;
+    margin: 0;
+  }
+
+  .title-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+    border: 1px solid var(--border);
+    border-bottom: 2px solid var(--accent);
+    border-radius: 10px 10px 0 0;
+    padding: 8px 14px;
+    box-shadow: var(--shadow-sm);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .title-text {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--text-primary);
+  }
+
+  .engine-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .engine-select-wrap label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .engine-select-wrap select {
+    height: 32px;
+    font-size: 13px;
+    width: auto;
+    min-width: 250px;
+    background-color: var(--surface);
+    border: 1.5px solid var(--accent);
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px 12px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .col-third { grid-column: span 2; }
+  .col-half  { grid-column: span 3; }
+  .col-two-thirds { grid-column: span 4; }
+
+  .field label {
+    font-weight: 600;
+    font-size: 11.5px;
+    margin-bottom: 3px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .req-star {
+    color: var(--danger);
+    font-weight: bold;
+    margin-left: 2px;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-input);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 5px 10px;
+    outline: none;
+    transition: border-color .15s var(--ease), box-shadow .15s var(--ease), background .15s var(--ease);
+  }
+
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px 16px;
+    padding-left: 10px;
+    padding-right: 36px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  select option {
+    background: #ffffff;
+    color: var(--text-primary);
+    padding: 6px 10px;
+  }
+
+  input:hover, select:hover, textarea:hover {
+    border-color: var(--border-strong);
+    background-color: var(--surface-hover);
+  }
+
+  input:focus, select:focus, textarea:focus {
+    background-color: var(--surface-hover);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .locked, :disabled {
+    background-color: var(--surface-hover) !important;
+    color: var(--text-secondary) !important;
+    cursor: not-allowed;
+  }
+
+  .gis-row {
+    display: flex;
+    position: relative;
+    align-items: center;
+  }
+  .gis-row input {
+    padding-right: 152px;
+  }
+  .gis-controls {
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .gis-controls button {
+    border: none;
+    border-radius: 4px;
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s var(--ease), color .15s var(--ease);
+    padding: 0;
+    height: 100%;
+  }
+  .gis-controls button:hover {
+    background: var(--border-strong);
+    color: #fff;
+  }
+  .gis-nav-btn {
+    width: 24px;
+  }
+  .gis-nav-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+  }
+  .gis-view-btn {
+    background: var(--accent) !important;
+    color: #ffffff !important;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 0 10px !important;
+  }
+  .gis-view-btn:hover {
+    background: var(--accent-hover) !important;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr !important; }
+    .col-third, .col-half, .col-two-thirds { grid-column: span 1 !important; }
+  }
+
+  .floor-wrap {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 10px;
+    width: 100%;
+    overflow-x: auto;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+  .floor-grid {
+    display: grid;
+    width: 100%;
+  }
+  .fth {
+    background: var(--surface-card);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+    padding: 7px 6px;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-strong);
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
+    line-height: 1.25;
+  }
+  .fth:last-child, .ftd:last-child { border-right: none; }
+  .frow-label {
+    background: var(--surface-card);
+    font-weight: 600;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-right: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .ftd {
+    padding: 4px 8px;
+    border-right: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .ftd-remarks-spanning {
+    align-items: stretch;
+  }
+  .ftd-remarks-spanning textarea {
+    height: 100%;
+    min-height: 28px;
+    resize: none;
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .ftd-tax {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 13px;
+    justify-content: flex-end;
+    padding-right: 12px;
+    background: rgba(2, 132, 199, 0.06);
+    font-family: monospace, sans-serif;
+  }
+  .ftd input, .ftd select {
+    height: 28px;
+    font-size: 12.5px;
+  }
+  .ftd select {
+    padding-left: 8px;
+    padding-right: 34px !important;
+  }
+  .ftd button {
+    border: none;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .15s var(--ease), opacity .15s var(--ease);
+  }
+  .floor-add { background: var(--accent); color: #ffffff !important; }
+  .floor-add:hover { background: var(--accent-hover); }
+  .floor-remove { background: var(--danger); }
+  .floor-remove:hover { background: var(--danger-hover); }
+
+  @media (max-width: 900px) {
+    .floor-grid { grid-template-columns: 1fr !important; }
+    .fth { display: none; }
+    .frow-label { border-top: 2px solid var(--border-strong); font-size: 13.5px; padding: 8px 10px; }
+    .ftd { border-right: none; border-top: none; padding: 5px 12px; flex-direction: column; align-items: stretch; }
+    .ftd::before { content: attr(data-label); font-weight: 600; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 2px; }
+    .ftd-remarks-spanning textarea { height: 50px; }
+    .ftd-tax { justify-content: flex-start; }
+  }
+
+  .tax-summary-bar {
+    margin-top: 8px;
+    padding: 8px 14px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+  }
+  .tax-summary-bar span {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .tax-summary-bar strong {
+    font-size: 16px;
+    color: var(--accent);
+    font-family: monospace, sans-serif;
+  }
+
+  /* Universal App-Themed Buttons */
+  .btns {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btns button {
+    padding: 8px 18px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #ffffff;
+    box-shadow: var(--shadow-sm);
+    transition: background-color .15s var(--ease), transform .1s var(--ease), box-shadow .15s var(--ease);
+  }
+  .btns button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .btns button:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .save { background: var(--success); }
+  .save:hover { background: var(--success-hover); }
+
+  .update { background: var(--warning); }
+  .update:hover { background: var(--warning-hover); }
+
+  .excel { background: var(--accent); }
+  .excel:hover { background: var(--accent-hover); }
+
+  .import { background: var(--purple); }
+  .import:hover { background: var(--purple-hover); }
+
+  .del { background: var(--danger); }
+  .del:hover { background: var(--danger-hover); }
+
+  .invoice { background: var(--teal); }
+  .invoice:hover { background: var(--teal-hover); }
+
+  .reset { background: var(--slate); }
+  .reset:hover { background: var(--slate-hover); }
+
+  #recordCount { text-align: center; margin-top: 8px; font-weight: 600; color: var(--text-secondary); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<!-- Redesigned Initial Prompt ULB Modal -->
+<div id="ulbPromptModal" class="modal-overlay" style="display: none;">
+  <div class="modal-card">
+    <div class="modal-icon-badge">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+      </svg>
+    </div>
+    <h3>Select Urban Local Body</h3>
+    <p>Multiple tax engines detected. Please select your municipality to proceed with calculations.</p>
+    
+    <div class="modal-select-wrapper">
+      <svg class="select-icon-left" viewBox="0 0 24 24">
+        <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/>
+      </svg>
+      <select id="modalUlbSelect" onchange="$('confirmUlbBtn').disabled = !this.value"></select>
+    </div>
+
+    <button type="button" class="btn-proceed" id="confirmUlbBtn" disabled onclick="confirmModalUlbSelection()">
+      <span>Proceed to Application</span>
+      <svg viewBox="0 0 20 20">
+        <path d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<div class="wrap">
+<form id="form">
+  <div class="title-bar">
+    <span class="title-text" id="appHeaderTitle">Property Tax Manager</span>
+    <div class="engine-select-wrap">
+      <label for="ulbSelect">ULB Name:</label>
+      <select id="ulbSelect" onchange="switchTaxEngine(this.value)">
+        <option value="">Detecting ULB files...</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel"><div class="grid" id="topGrid"></div></div>
+
+  <div class="floor-wrap"><div class="floor-grid" id="floorGrid"></div></div>
+
+  <div class="tax-summary-bar">
+    <span>Total Built-Up Estimated Tax:</span>
+    <strong id="totalTaxDisplay">₹0.00</strong>
+  </div>
+
+  <div class="btns">
+    <button type="button" class="save" id="saveBtn" onclick="persist('save')">Save Record</button>
+    <button type="button" class="update" id="updateBtn" style="display:none" onclick="persist('update')">Update Record</button>
+    <button type="button" class="del" id="deleteBtn" style="display:none" onclick="deleteRecord()">Delete Record</button>
+    <button type="button" class="invoice" id="invoiceBtn" style="display:none" onclick="downloadInvoice()">Download Invoice</button>
+    <button type="button" class="excel" id="exportExcelBtn" onclick="downloadExcel()">Export Excel</button>
+    <button type="button" class="import" id="importExcelBtn" onclick="document.getElementById('importFile').click()">Import Excel</button>
+    <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="handleImportFile(event)">
+    <button type="button" class="excel" id="backupBtn" onclick="exportBackup()">Backup (JSON)</button>
+    <button type="button" class="import" id="restoreBtn" onclick="document.getElementById('importBackupFile').click()">Restore Backup</button>
+    <input type="file" id="importBackupFile" accept=".json" style="display:none" onchange="handleImportBackupFile(event)">
+    <button type="button" class="del" id="clearBtn" onclick="clearAllData()">Clear All Data</button>
+    <button type="button" class="reset" onclick="resetFormMode()">Reset Form</button>
+  </div>
+  <div id="recordCount">Records saved: 0</div>
+</form>
+</div>
+
+<script>
+/* --------------------------------------------------------------------------
+   TAX ENGINES REGISTRY
+-------------------------------------------------------------------------- */
+const TAX_ENGINES = [
+  { file: "taxCalculator_mcpaonta.js" },
+  { file: "taxCalculator_mcnahan.js" },
+  { file: "taxCalculator_npbhota.js" },
+];
+
+const KEY = "property_records";
+const ULB_STORAGE_KEY = "selected_tax_file";
+let currentUlbFile = "";
+let currentUlbName = "";
+let isEngineLoaded = false;
+const $ = id => document.getElementById(id);
+const norm = v => String(v ?? "").trim().toLowerCase();
+const cellToString = v => v == null ? "" : v instanceof Date ? v.toLocaleDateString("en-IN") : String(v).trim();
+
+/* Auto-Fade Toast Notification System */
+function showToast(message, type = "info", duration = 4000) {
+  const container = $("toast-container");
+  if (!container) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add("show");
+  });
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+    toast.addEventListener("transitionend", () => toast.remove());
+  }, duration);
+}
+
+const FIELD_LABELS = {
+  ward:"Ward", gis_id:"GIS ID", old_house_no:"Old House No", owner_name:"Owner Name",
+  father_husband_name:"Owner Father/Mother/Husband Name", address:"Address",
+  mobile_no:"Mobile No.", open_plot_area:"Open Plot Area (Sq. Mtr.)", remarks:"Remarks",
+  saved_date:"Saved Date", updated_date:"Updated Date"
+};
+const TOP_COLS = ["ward","gis_id","old_house_no","owner_name","father_husband_name","address","mobile_no","open_plot_area"];
+
+const YESNO = ["No", "Yes"];
+
+let WARD = [];
+let ZONE = [];
+let BUILD = [];
+let YEAR = [];
+let OCCUPANCY = [];
+
+let TOP_FIELDS = [];
+let FLOOR_FIELDS = [];
+let FLOOR_COLS = [];
+
+function refreshOptionsFromEngine() {
+  WARD = window.TaxCalculator?.OPTIONS?.WARD || [];
+  ZONE = window.TaxCalculator?.OPTIONS?.ZONE || ["N/A"];
+  BUILD = window.TaxCalculator?.OPTIONS?.BUILD || ["N/A"];
+  YEAR = window.TaxCalculator?.OPTIONS?.YEAR || ["N/A"];
+  OCCUPANCY = window.TaxCalculator?.OPTIONS?.OCCUPANCY || ["N/A"];
+
+  TOP_FIELDS = [
+    ["ward", { label: "Ward No", required: true, spanClass: "col-third", options: WARD }],
+    ["gis_id", { label: "GIS ID", required: true, withNavButtons: true, spanClass: "col-third" }],
+    ["old_house_no", { label: "Old House No", spanClass: "col-third" }],
+    ["owner_name", { label: "Owner Name", spanClass: "col-half" }],
+    ["father_husband_name", { label: "Father / Mother / Husband Name", spanClass: "col-half" }],
+    ["address", { label: "Property Address", spanClass: "col-two-thirds" }],
+    ["mobile_no", { label: "Mobile Number", maxlength: 10, spanClass: "col-third" }],
+    ["remarks", { label: "Remarks", spanClass: "col-two-thirds" }],
+    ["open_plot_area", { label: "Open Plot Area (Sq. Mtr.)", spanClass: "col-third" }]
+  ];
+
+  FLOOR_FIELDS = [
+    ["yes_no", "Yes/No", YESNO],
+    ["zone", "ZONE (F1)", ZONE],
+    ["building_type", "Building Type (F2)", BUILD],
+    ["year", "Year of Construction (F3)", YEAR],
+    ["occupancy", "Occupancy (F4)", OCCUPANCY],
+    ["area", "Area (Sq. Mtr.)", null],
+    ["remarks", "Remarks", null]
+  ];
+  FLOOR_COLS = FLOOR_FIELDS.map(f => f[1]);
+}
+
+const FLOORS = [["basement","Basement"],["ground","Ground Floor"],["first","First Floor"],
+                 ["second","Second Floor"],["third","Third Floor"],["fourth","Fourth Floor"]];
+
+const makeEmptyEntry = (yesNo = "No") => ({
+  yes_no: norm(yesNo) === "yes" ? "Yes" : "No",
+  zone: ZONE[0] || "",
+  building_type: BUILD[0] || "",
+  year: YEAR[0] || "",
+  occupancy: OCCUPANCY[0] || "",
+  area: norm(yesNo) === "yes" ? "0" : "N/A",
+  remarks: ""
+});
+const defaultFloorEntries = () => Object.fromEntries(FLOORS.map(([p]) => [p, [makeEmptyEntry()]]));
+
+function floorEntriesFromRecord(record){
+  return Object.fromEntries(FLOORS.map(([p]) => {
+    const entries = record.floors?.[p]?.length ? record.floors[p] : [makeEmptyEntry()];
+    const firstRem = entries.find(e => e.remarks && e.remarks !== "N/A")?.remarks || entries[0]?.remarks || "";
+    return [p, entries.map(e => {
+      const isYes = norm(e.yes_no) === "yes";
+      const yn = isYes ? "Yes" : "No";
+      let areaVal = e.area;
+      if (areaVal == null || areaVal === "" || areaVal === "N/A") {
+        areaVal = isYes ? "0" : "N/A";
+      }
+      return { ...makeEmptyEntry(yn), ...e, yes_no: yn, area: areaVal, remarks: firstRem };
+    })];
+  }));
+}
+let floorEntries = defaultFloorEntries();
+
+function probeUlbName(fileUrl) {
+  return new Promise((resolve) => {
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+
+    try {
+      const idoc = iframe.contentDocument || iframe.contentWindow.document;
+      const script = idoc.createElement("script");
+      script.src = fileUrl;
+      script.onload = () => {
+        const iwin = iframe.contentWindow;
+        const name = iwin?.TaxCalculator?.ULB_NAME || iwin?.TaxCalculator?.METADATA?.name || null;
+        iframe.remove();
+        resolve(name);
+      };
+      script.onerror = () => {
+        iframe.remove();
+        resolve(null);
+      };
+      idoc.head.appendChild(script);
+    } catch (e) {
+      iframe.remove();
+      resolve(null);
+    }
+  });
+}
+
+async function buildUlbMenu() {
+  const sel = $("ulbSelect");
+  const modalSel = $("modalUlbSelect");
+  sel.innerHTML = "";
+  modalSel.innerHTML = "";
+
+  const placeholderOpt = document.createElement("option");
+  placeholderOpt.value = "";
+  placeholderOpt.textContent = "-- Select ULB --";
+  placeholderOpt.disabled = true;
+  placeholderOpt.selected = true;
+  modalSel.appendChild(placeholderOpt);
+
+  const validEngines = [];
+
+  for (const eng of TAX_ENGINES) {
+    const name = await probeUlbName(eng.file);
+    if (name) {
+      eng.displayName = name;
+      validEngines.push(eng);
+
+      const opt = document.createElement("option");
+      opt.value = eng.file;
+      opt.textContent = eng.displayName;
+      sel.appendChild(opt.cloneNode(true));
+      modalSel.appendChild(opt);
+    }
+  }
+  delete window.TaxCalculator;
+
+  // Prompt if multiple engines available, otherwise load default
+  if (validEngines.length > 1) {
+    modalSel.value = "";
+    const confirmBtn = $("confirmUlbBtn");
+    if (confirmBtn) confirmBtn.disabled = true;
+    $("ulbPromptModal").style.display = "flex";
+  } else if (validEngines.length === 1) {
+    switchTaxEngine(validEngines[0].file, true);
+  } else {
+    // Fallback to absolute default engine definition
+    switchTaxEngine(TAX_ENGINES[0].file, true);
+  }
+}
+
+function confirmModalUlbSelection() {
+  const chosen = $("modalUlbSelect").value;
+  const confirmBtn = $("confirmUlbBtn");
+
+  if (chosen) {
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.querySelector("span").textContent = "Loading...";
+    }
+
+    const ulbSelect = $("ulbSelect");
+    if (ulbSelect) {
+      ulbSelect.value = chosen;
+    }
+    
+    switchTaxEngine(chosen, true);
+    
+    setTimeout(() => {
+      $("ulbPromptModal").style.display = "none";
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.querySelector("span").textContent = "Proceed to Application";
+      }
+    }, 200);
+  }
+}
+
+function switchTaxEngine(filePath, isInitialLoad = false) {
+  const engine = TAX_ENGINES.find(e => e.file === filePath) || TAX_ENGINES[0];
+  localStorage.setItem(ULB_STORAGE_KEY, engine.file);
+
+  const existingScript = document.getElementById("activeTaxCalculatorScript");
+  if (existingScript) existingScript.remove();
+
+  syncFloorDomToState();
+  const wasEditing = editingIndex !== -1;
+  const currentWardVal = $("ward") ? $("ward").value : "";
+
+  const script = document.createElement("script");
+  script.id = "activeTaxCalculatorScript";
+  script.src = engine.file;
+  script.onload = () => {
+    isEngineLoaded = true;
+    const runtimeName = window.TaxCalculator?.ULB_NAME || window.TaxCalculator?.METADATA?.name || engine.displayName;
+    currentUlbFile = engine.file;
+    currentUlbName = runtimeName;
+
+    const currentOpt = $("ulbSelect")?.querySelector(`option[value="${engine.file}"]`);
+    if (currentOpt && runtimeName) {
+      currentOpt.textContent = runtimeName;
+    }
+
+    const header = $("appHeaderTitle");
+    if (header) {
+      header.textContent = runtimeName ? `${runtimeName} - Tax Manager` : "Property Tax Manager";
+    }
+
+    if (wasEditing) {
+      editingIndex = -1;
+      $("saveBtn").style.display = "inline-block";
+      $("updateBtn").style.display = "none";
+      $("deleteBtn").style.display = "none";
+      $("invoiceBtn").style.display = "none";
+      lockKeys(false);
+      setNavButtonsVisible(false);
+    }
+
+    toggleActionButtons(true);
+    refreshOptionsFromEngine();
+    buildTopGrid();
+    if (!wasEditing && currentWardVal && $("ward")) $("ward").value = currentWardVal;
+    floorEntries = defaultFloorEntries();
+    buildFloorGrid();
+    recalcFloorColumns();
+    updateUiTaxCalculations();
+    updateRecordCount();
+
+    if (!isInitialLoad) {
+      showToast(wasEditing
+        ? `Switched to ${runtimeName}. Reset view mode.`
+        : `Switched engine to ${runtimeName}.`, "info");
+    }
+  };
+  script.onerror = () => {
+    isEngineLoaded = false;
+    delete window.TaxCalculator;
+    currentUlbFile = engine.file;
+    currentUlbName = engine.displayName || "Default";
+    
+    toggleActionButtons(false);
+    refreshOptionsFromEngine();
+    buildTopGrid();
+    floorEntries = defaultFloorEntries();
+    buildFloorGrid();
+    recalcFloorColumns();
+    updateUiTaxCalculations();
+    updateRecordCount();
+
+    showToast(`Warning: Tax engine file "${engine.file}" unavailable. Actions and options restricted.`, "warning", 6000);
+  };
+  document.head.appendChild(script);
+}
+
+function toggleActionButtons(enabled) {
+  $("saveBtn").disabled = !enabled;
+  $("updateBtn").disabled = !enabled;
+  $("deleteBtn").disabled = !enabled;
+  $("clearBtn").disabled = !enabled;
+  $("exportExcelBtn").disabled = !enabled;
+  $("importExcelBtn").disabled = !enabled;
+  $("backupBtn").disabled = !enabled;
+  $("restoreBtn").disabled = !enabled;
+}
+
+function buildTopGrid(){
+  const curWardVal = $("ward") ? $("ward").value : "";
+  $("topGrid").innerHTML = TOP_FIELDS.map(([id, o]) => {
+    const attrs = (o.required ? " required" : "") + (o.maxlength ? ` maxlength="${o.maxlength}"` : "");
+    const labelText = o.label || FIELD_LABELS[id] || id;
+    const reqStar = o.required ? `<span class="req-star">*</span>` : "";
+
+    let field;
+    if (o.options) {
+      field = `<select id="${id}" name="${id}"${attrs}>
+        <option value="">-- Select ${labelText} --</option>
+        ${o.options.map(v => `<option value="${v}">${v}</option>`).join("")}
+      </select>`;
+    } else if (o.withNavButtons) {
+      field = `<div class="gis-row">
+           <input id="${id}" name="${id}"${attrs} placeholder="Enter GIS ID">
+           <div class="gis-controls">
+             <button type="button" id="prevGisBtn" class="gis-nav-btn" style="display:none" onclick="navigateGisRecord(-1)" title="Previous GIS ID">
+               <svg viewBox="0 0 20 20"><path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"/></svg>
+             </button>
+             <button type="button" class="gis-view-btn" onclick="searchRecord()">View</button>
+             <button type="button" id="nextGisBtn" class="gis-nav-btn" style="display:none" onclick="navigateGisRecord(1)" title="Next GIS ID">
+               <svg viewBox="0 0 20 20"><path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 010-1.414z"/></svg>
+             </button>
+           </div>
+         </div>`;
+    } else {
+      field = `<input id="${id}" name="${id}"${attrs} placeholder="Enter ${labelText}">`;
+    }
+
+    return `
+      <div class="field ${o.spanClass || ''}">
+        <label for="${id}">${labelText}${reqStar}</label>
+        ${field}
+      </div>
+    `;
+  }).join("");
+
+  if (curWardVal && $("ward")) $("ward").value = curWardVal;
+}
+
+const esc = v => String(v ?? "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function setNavButtonsVisible(visible) {
+  const prev = $("prevGisBtn");
+  const next = $("nextGisBtn");
+  const gisInput = $("gis_id");
+  if (prev) prev.style.display = visible ? "flex" : "none";
+  if (next) next.style.display = visible ? "flex" : "none";
+  if (gisInput) gisInput.style.paddingRight = visible ? "152px" : "80px";
+}
+
+function handleYesNoChange(selectEl, p, idx) {
+  const isYes = norm(selectEl.value) === "yes";
+  const areaInput = document.querySelector(`input[name="${p}__${idx}__area"]`);
+  if (areaInput) {
+    if (isYes) {
+      if (areaInput.value === "N/A" || areaInput.value === "") areaInput.value = "0";
+    } else {
+      areaInput.value = "N/A";
+    }
+  }
+  if (floorEntries[p]?.[idx]) {
+    floorEntries[p][idx].yes_no = isYes ? "Yes" : "No";
+    floorEntries[p][idx].area = isYes ? (!floorEntries[p][idx].area || floorEntries[p][idx].area === "N/A" ? "0" : floorEntries[p][idx].area) : "N/A";
+  }
+  updateUiTaxCalculations();
+  recalcFloorColumns();
+}
+
+function updateUiTaxCalculations() {
+  syncFloorDomToState();
+  let grandTotal = 0;
+
+  FLOORS.forEach(([p]) => {
+    (floorEntries[p] || []).forEach((entry, idx) => {
+      let entryTax = 0;
+      if (isEngineLoaded && typeof TaxCalculator !== "undefined" && typeof TaxCalculator.calculateEntryTax === "function") {
+        entryTax = TaxCalculator.calculateEntryTax(entry);
+      }
+      grandTotal += entryTax;
+      const cell = document.getElementById(`tax__${p}__${idx}`);
+      if (cell) {
+        cell.textContent = entryTax > 0 ? `₹${entryTax.toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "₹0.00";
+      }
+    });
+  });
+
+  const totalEl = $("totalTaxDisplay");
+  if (totalEl) {
+    totalEl.textContent = `₹${grandTotal.toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  }
+}
+
+function buildFloorGrid(){
+  let html = `<div class="fth">Floor</div>`
+    + FLOOR_COLS.map(c => `<div class="fth">${c}</div>`).join("")
+    + `<div class="fth">Tax (₹)</div>`
+    + `<div class="fth">Actions</div>`;
+
+  FLOORS.forEach(([p,label]) => {
+    const entries = floorEntries[p] || [makeEmptyEntry()];
+    const count = entries.length;
+    html += `<div class="frow-label" data-floor="${p}" data-count="${count}">${label}</div>`;
+
+    entries.forEach((entry, idx) => {
+      FLOOR_FIELDS.slice(0, 6).forEach(([key, flabel, options]) => {
+        const name = `${p}__${idx}__${key}`;
+        let field;
+        if (key === "yes_no") {
+          field = `<select name="${name}" onchange="handleYesNoChange(this, '${p}', ${idx})">
+            ${options.map(v => `<option value="${v}"${norm(v) === norm(entry[key]) ? " selected" : ""}>${v}</option>`).join("")}
+          </select>`;
+        } else if (options) {
+          field = `<select name="${name}" onchange="handleFloorSelectChange()">
+            ${options.length ? options.map(v => `<option value="${v}"${v === entry[key] ? " selected" : ""}>${v}</option>`).join("") : `<option value="">Select</option>`}
+          </select>`;
+        } else {
+          field = `<input name="${name}" value="${esc(entry[key])}" placeholder="Sq. Mtr." oninput="updateUiTaxCalculations()" onchange="updateUiTaxCalculations()">`;
+        }
+        html += `<div class="ftd" data-label="${flabel}">${field}</div>`;
+      });
+
+      if (idx === 0) {
+        const remVal = entry.remarks || "";
+        const remField = count > 1
+          ? `<textarea name="${p}__0__remarks" placeholder="Floor remarks..." oninput="updateUiTaxCalculations()">${esc(remVal)}</textarea>`
+          : `<input name="${p}__0__remarks" value="${esc(remVal)}" placeholder="Floor remarks..." oninput="updateUiTaxCalculations()">`;
+
+        html += `<div class="ftd ftd-remarks-spanning" data-floor-remarks="${p}" data-count="${count}" data-label="Remarks">${remField}</div>`;
+      }
+
+      html += `<div class="ftd ftd-tax" id="tax__${p}__${idx}" data-label="Tax (₹)">₹0.00</div>`;
+
+      const removeBtn = count > 1 ? `<button type="button" class="floor-remove" onclick="removeFloorEntry('${p}',${idx})">Remove</button>` : "";
+      const addBtn = idx === count - 1 ? `<button type="button" class="floor-add" onclick="addFloorEntry('${p}')">+ Add</button>` : "";
+      html += `<div class="ftd" data-label="Actions">${removeBtn}${addBtn}</div>`;
+    });
+  });
+  $("floorGrid").innerHTML = html;
+  updateUiTaxCalculations();
+}
+
+function syncFloorDomToState(){
+  const grid = $("floorGrid");
+  if (!grid) return;
+  grid.querySelectorAll("[name]").forEach(el => {
+    const parts = el.name.split("__");
+    if (parts.length === 3) {
+      const [p, idxStr, key] = parts;
+      if (!floorEntries[p]) return;
+      if (key === "remarks") {
+        floorEntries[p].forEach(e => { e.remarks = el.value; });
+      } else if (floorEntries[p][+idxStr]) {
+        floorEntries[p][+idxStr][key] = el.value;
+      }
+    }
+  });
+}
+
+function addFloorEntry(p){
+  syncFloorDomToState();
+  const currentRemarks = floorEntries[p][0]?.remarks || "";
+  floorEntries[p].push({ ...makeEmptyEntry("Yes"), area: "0", remarks: currentRemarks });
+  buildFloorGrid();
+  recalcFloorColumns();
+}
+
+function removeFloorEntry(p, idx){
+  syncFloorDomToState();
+  if (floorEntries[p].length <= 1) return;
+  floorEntries[p].splice(idx, 1);
+  buildFloorGrid();
+  recalcFloorColumns();
+}
+
+const _ctx = document.createElement("canvas").getContext("2d");
+const textWidth = (text, font) => { _ctx.font = font; return _ctx.measureText(text || "").width; };
+const isWideMode = () => window.matchMedia("(min-width: 901px)").matches;
+
+function currentColumnValueWidth(grid, key, options, font) {
+  const fallback = options[0] ? textWidth(options[0], font) : 50;
+  if (!grid) return fallback;
+  const selects = grid.querySelectorAll(`select[name$="__${key}"]`);
+  if (!selects.length) return fallback;
+  let maxW = 0;
+  selects.forEach(sel => { maxW = Math.max(maxW, textWidth(sel.value, font)); });
+  return maxW;
+}
+
+function handleFloorSelectChange(){
+  updateUiTaxCalculations();
+  recalcFloorColumns();
+}
+
+function longestWordWidth(text, font, letterSpacingPx = 0) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  let maxW = 0;
+  words.forEach(w => {
+    const upper = w.toUpperCase();
+    const w0 = textWidth(upper, font) + (upper.length * letterSpacingPx);
+    maxW = Math.max(maxW, w0);
+  });
+  return maxW;
+}
+
+function getComputedFloorColumnWidths() {
+  const fontHeader = "bold 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  const fontLabel = "600 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  const fontInput = "12.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+  let maxFloorLabelWidth = textWidth("Floor", fontHeader);
+  FLOORS.forEach(([_, label]) => {
+    maxFloorLabelWidth = Math.max(maxFloorLabelWidth, textWidth(label, fontLabel));
+  });
+  const colFloorWidth = Math.ceil(maxFloorLabelWidth) + 30;
+
+  const grid = $("floorGrid");
+  const headerWordPad = 20;
+  const headerLetterSpacing = 0.5;
+
+  const colDataWidths = FLOOR_FIELDS.map(([key, headerLabel, options]) => {
+    const headerWordReqWidth = Math.ceil(longestWordWidth(headerLabel, fontHeader, headerLetterSpacing)) + headerWordPad;
+
+    if (options && Array.isArray(options)) {
+      const valueWidth = currentColumnValueWidth(grid, key, options, fontInput);
+      const dropdownReqWidth = Math.max(70, Math.ceil(valueWidth) + 62);
+      return Math.max(dropdownReqWidth, headerWordReqWidth);
+    } else {
+      const headerW = textWidth(headerLabel, fontHeader);
+      const baseWidth = key === "area" ? Math.max(105, Math.ceil(headerW) + 24) : Math.max(160, Math.ceil(headerW) + 24);
+      return Math.max(baseWidth, headerWordReqWidth);
+    }
+  });
+
+  const colTaxWidth = Math.max(100, Math.ceil(longestWordWidth("Tax (₹)", fontHeader, headerLetterSpacing)) + headerWordPad);
+  const colActionsWidth = Math.max(140, Math.ceil(longestWordWidth("Actions", fontHeader, headerLetterSpacing)) + headerWordPad);
+  return [colFloorWidth, ...colDataWidths, colTaxWidth, colActionsWidth];
+}
+
+function recalcFloorColumns(){
+  const grid = $("floorGrid");
+  if (!grid) return;
+  const wide = isWideMode();
+
+  grid.querySelectorAll(".frow-label, .ftd-remarks-spanning").forEach(el => {
+    el.style.gridRow = wide ? `span ${el.dataset.count}` : "";
+  });
+
+  if (!wide) {
+    grid.style.gridTemplateColumns = "";
+    return;
+  }
+
+  const widths = getComputedFloorColumnWidths();
+  widths[7] = `minmax(${widths[7]}px, 1fr)`;
+  grid.style.gridTemplateColumns = widths.map(w => typeof w === "number" ? `${w}px` : w).join(" ");
+}
+
+function getAll(){
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch(e) {
+    console.error("property_records is corrupted:", e);
+    showToast("Saved records appear corrupted and could not be loaded.", "danger");
+    return [];
+  }
+}
+
+function saveAll(recs){
+  try {
+    localStorage.setItem(KEY, JSON.stringify(recs));
+    return true;
+  } catch(e) {
+    console.error("Failed to save records:", e);
+    showToast("Save failed: " + e.message, "danger");
+    return false;
+  }
+}
+const recordUlbFile = r => r.ulb_file || TAX_ENGINES[0].file;
+const findIndex = (recs, ward, gis, ulbFile = currentUlbFile) =>
+  recs.findIndex(r => norm(r.ward) === norm(ward) && norm(r.gis_id) === norm(gis) && recordUlbFile(r) === ulbFile);
+const ulbRecords = (recs = getAll(), ulbFile = currentUlbFile) => recs.filter(r => recordUlbFile(r) === ulbFile);
+
+function fillBlanksWithNA(obj){
+  Object.keys(obj).forEach(k => {
+    const v = obj[k];
+    if (Array.isArray(v)) v.forEach(fillBlanksWithNA);
+    else if (v && typeof v === "object") fillBlanksWithNA(v);
+    else if (!String(v ?? "").trim()) obj[k] = "N/A";
+  });
+  return obj;
+}
+
+let editingIndex = -1;
+
+const updateRecordCount = () => {
+  const rc = $("recordCount");
+  if (!rc) return;
+  const all = getAll();
+  const forThisUlb = ulbRecords(all).length;
+  rc.innerHTML = currentUlbName
+    ? `Records saved: ${forThisUlb} for ${currentUlbName} (${all.length} total across all ULBs)`
+    : `Records saved: ${all.length}`;
+};
+
+const lockKeys = lock => ["ward","gis_id"].forEach(id => {
+  const el = $(id);
+  if (el) {
+    // IMPORTANT: never use `disabled` here — disabled form fields are excluded
+    // from FormData entirely, which was wiping the Ward value out of the record
+    // on every Update. Keep the field enabled (so it still submits) and just
+    // block interaction + apply the existing .locked visual style instead.
+    if (el.tagName === "SELECT") {
+      el.style.pointerEvents = lock ? "none" : "";
+      el.tabIndex = lock ? -1 : 0;
+    } else {
+      el.readOnly = lock;
+    }
+    el.classList.toggle("locked", lock);
+  }
+});
+
+function fillForm(record){
+  const form = $("form");
+  Object.keys(record).forEach(k => {
+    if (k !== "floors" && form.elements[k]) {
+      const val = record[k] ?? (k === "remarks" ? record["pendency"] : undefined);
+      form.elements[k].value = val === "N/A" || val === undefined ? "" : val;
+    }
+  });
+  floorEntries = floorEntriesFromRecord(record);
+  buildFloorGrid();
+  recalcFloorColumns();
+  updateUiTaxCalculations();
+}
+
+function resetFormMode(){
+  $("form").reset();
+  const ulbSel = $("ulbSelect");
+  if (ulbSel) {
+    ulbSel.value = currentUlbFile;
+    const activeOpt = ulbSel.querySelector(`option[value="${currentUlbFile}"]`);
+    if (activeOpt && currentUlbName) activeOpt.textContent = currentUlbName;
+  }
+  editingIndex = -1;
+  $("saveBtn").style.display = "inline-block";
+  $("updateBtn").style.display = "none";
+  $("deleteBtn").style.display = "none";
+  $("invoiceBtn").style.display = "none";
+  lockKeys(false);
+  setNavButtonsVisible(false);
+  floorEntries = defaultFloorEntries();
+  buildFloorGrid();
+  recalcFloorColumns();
+  updateUiTaxCalculations();
+}
+
+function loadRecordByIndex(idx, recs = getAll()) {
+  if (idx < 0 || idx >= recs.length) return;
+  fillForm(recs[idx]);
+  editingIndex = idx;
+  $("saveBtn").style.display = "none";
+  if (isEngineLoaded) {
+    $("updateBtn").style.display = "inline-block";
+    $("deleteBtn").style.display = "inline-block";
+  }
+  $("invoiceBtn").style.display = "inline-block";
+  lockKeys(true);
+  setNavButtonsVisible(true);
+  const ulbList = ulbRecords(recs, recordUlbFile(recs[idx]));
+  const posInUlb = ulbList.findIndex(r => norm(r.ward) === norm(recs[idx].ward) && norm(r.gis_id) === norm(recs[idx].gis_id)) + 1;
+  showToast(`Viewing Record ${posInUlb} of ${ulbList.length} (Ward ${recs[idx].ward} / GIS ID ${recs[idx].gis_id})`, "info");
+}
+
+function searchRecord(){
+  const wardInput = $("ward").value.trim(), gisInput = $("gis_id").value.trim();
+  const recs = getAll();
+  const ulbList = ulbRecords(recs);
+
+  if (!ulbList.length) return showToast(`No records saved yet for ${currentUlbName}.`, "warning");
+  if (!wardInput || !gisInput) {
+    if (!wardInput) $("ward").focus();
+    else $("gis_id").focus();
+    return showToast("Please enter both Ward No and GIS ID to view.", "warning");
+  }
+
+  const idx = findIndex(recs, wardInput, gisInput);
+  if (idx === -1) {
+    return showToast(`Record not found for Ward ${wardInput} and GIS ID ${gisInput}.`, "warning");
+  }
+
+  loadRecordByIndex(idx, recs);
+}
+
+function navigateGisRecord(direction) {
+  const recs = getAll();
+  const ulbList = ulbRecords(recs);
+  if (!ulbList.length) return showToast(`No records saved yet for ${currentUlbName}.`, "warning");
+
+  const currentWard = $("ward").value.trim();
+  const currentGis = $("gis_id").value.trim();
+
+  let currentIndex = ulbList.findIndex(r => norm(r.ward) === norm(currentWard) && norm(r.gis_id) === norm(currentGis));
+  if (currentIndex === -1) return showToast(`Record not found in ${currentUlbName}.`, "warning");
+
+  const nextIndex = currentIndex + direction;
+  if (nextIndex < 0 || nextIndex >= ulbList.length) {
+    return showToast("No further records available in that direction.", "warning");
+  }
+
+  const target = ulbList[nextIndex];
+  const fullIdx = findIndex(recs, target.ward, target.gis_id, recordUlbFile(target));
+  loadRecordByIndex(fullIdx, recs);
+}
+
+function readFormRecord(){
+  const fd = Object.fromEntries(new FormData($("form")).entries());
+  const record = {};
+  const floors = Object.fromEntries(FLOORS.map(([p]) => [p, (floorEntries[p] || []).map(() => ({}))]));
+
+  Object.keys(fd).forEach(k => {
+    const parts = k.split("__");
+    if (parts.length === 3 && floors[parts[0]]?.[+parts[1]]) {
+      const [floorName, _, fieldKey] = parts;
+      if (fieldKey === "remarks") {
+        floors[floorName].forEach(e => { e.remarks = fd[k]; });
+      } else {
+        floors[parts[0]][+parts[1]][fieldKey] = fd[k];
+      }
+    } else {
+      record[k] = fd[k];
+    }
+  });
+
+  FLOORS.forEach(([p]) => {
+    const floorRemark = floorEntries[p]?.[0]?.remarks || "";
+    floors[p].forEach(e => {
+      if (!e.remarks) e.remarks = floorRemark;
+    });
+  });
+
+  record.floors = floors;
+  record.ulb_file = currentUlbFile;
+  record.ulb_name = currentUlbName;
+  return fillBlanksWithNA(record);
+}
+
+function persist(mode){
+  if (!isEngineLoaded) return showToast("Tax calculation engine is unavailable. Action disabled.", "danger");
+
+  const ward = $("ward").value.trim(), gis = $("gis_id").value.trim();
+  if (!ward) return showToast("Please enter Ward No", "warning"), $("ward").focus();
+  if (!gis) return showToast("Please enter GIS ID", "warning"), $("gis_id").focus();
+
+  const recs = getAll();
+  syncFloorDomToState();
+  const record = readFormRecord();
+
+  if (mode === "save") {
+    if (findIndex(recs, ward, gis) !== -1) return showToast(`Ward ${ward} and GIS ID ${gis} already exists.`, "warning");
+    record.saved_date = new Date().toLocaleString("en-IN");
+    recs.push(record);
+    if (!saveAll(recs)) return;
+    showToast(`Record saved successfully for ${currentUlbName}!`, "success");
+  } else {
+    if (editingIndex === -1) return showToast("Please load a record first.", "warning");
+    record.saved_date = recs[editingIndex]?.saved_date || new Date().toLocaleString("en-IN");
+    record.updated_date = new Date().toLocaleString("en-IN");
+    recs[editingIndex] = record;
+    if (!saveAll(recs)) return;
+    showToast(`Record updated successfully!`, "success");
+  }
+  updateRecordCount();
+  resetFormMode();
+}
+
+function deleteRecord() {
+  if (!isEngineLoaded) return showToast("Tax calculation engine is unavailable. Action disabled.", "danger");
+  if (editingIndex === -1) return showToast("Please load a record first.", "warning");
+  const recs = getAll();
+  const rec = recs[editingIndex];
+  if (!rec) return showToast("Record not found.", "danger");
+
+  if (!confirm(`Delete record: Ward ${rec.ward}, GIS ID ${rec.gis_id} (${recordUlbFile(rec) === currentUlbFile ? currentUlbName : (rec.ulb_name || "Unknown ULB")})?`)) return;
+
+  recs.splice(editingIndex, 1);
+  if (!saveAll(recs)) return;
+
+  updateRecordCount();
+  resetFormMode();
+  showToast(`Record deleted: Ward ${rec.ward}, GIS ID ${rec.gis_id}`, "danger");
+}
+
+function downloadInvoice() {
+  if (editingIndex === -1) return showToast("Please load a saved record first to download its invoice.", "warning");
+
+  const recs = getAll();
+  const record = recs[editingIndex];
+  if (!record) return showToast("Record not found.", "danger");
+
+  const displayVal = v => (v === undefined || v === null || v === "" || v === "N/A") ? "N/A" : String(v);
+
+  const floorRows = [];
+  let totalTax = 0;
+  FLOORS.forEach(([p, label]) => {
+    (record.floors?.[p] || []).forEach(entry => {
+      if (norm(entry.yes_no) !== "yes") return;
+      let tax = 0;
+      if (isEngineLoaded && typeof TaxCalculator !== "undefined" && typeof TaxCalculator.calculateEntryTax === "function") {
+        tax = TaxCalculator.calculateEntryTax(entry) || 0;
+      }
+      if (tax <= 0) return;
+      totalTax += tax;
+      floorRows.push([label, displayVal(entry.area), displayVal(entry.occupancy),
+        `Rs. ${tax.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    });
+  });
+
+  if (totalTax <= 0) {
+    return showToast("This property has zero total tax. Invoice cannot be generated.", "warning");
+  }
+
+  const jsPDFCtor = window.jspdf?.jsPDF;
+  if (!jsPDFCtor) return showToast("PDF library failed to load.", "danger");
+
+  const doc = new jsPDFCtor({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = 50;
+
+  const currentUlb = $("ulbSelect")?.selectedOptions[0]?.text || "MUNICIPAL CORPORATION";
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text(currentUlb.toUpperCase(), pageWidth / 2, y, { align: "center" });
+  y += 18;
+
+  doc.setFontSize(13);
+  doc.text("Property Tax Assessment Invoice", pageWidth / 2, y, { align: "center" });
+  y += 18;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, pageWidth / 2, y, { align: "center" });
+  doc.setTextColor(0);
+  y += 14;
+  doc.setDrawColor(200);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 18;
+
+  const ownerRows = TOP_COLS.filter(k => k !== "open_plot_area")
+    .map(k => [FIELD_LABELS[k] || k, displayVal(record[k])]);
+
+  doc.autoTable({
+    startY: y,
+    theme: "plain",
+    styles: { fontSize: 10, cellPadding: 3 },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 150 } },
+    body: ownerRows,
+    margin: { left: margin, right: margin }
+  });
+  y = doc.lastAutoTable.finalY + 12;
+
+  doc.autoTable({
+    startY: y,
+    head: [["Floor", "Area (Sq. Mtr.)", "Occupancy", "Tax (Rs.)"]],
+    body: floorRows,
+    theme: "grid",
+    styles: { fontSize: 10, cellPadding: 5 },
+    headStyles: { fillColor: [2, 132, 199], textColor: 255 },
+    margin: { left: margin, right: margin }
+  });
+  y = doc.lastAutoTable.finalY + 18;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(`Total Tax: Rs. ${totalTax.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    pageWidth - margin, y, { align: "right" });
+  y += 26;
+
+  const disclaimer = "Disclaimer: This is a provisional invoice generated for reference/estimation purposes only. " +
+    "It is NOT an official or actual tax invoice and holds no legal validity.";
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(8.5);
+  doc.setTextColor(120);
+  const disclaimerLines = doc.splitTextToSize(disclaimer, pageWidth - margin * 2);
+  doc.text(disclaimerLines, margin, y);
+
+  const filename = `Invoice_${currentUlb.replace(/\s+/g, '_')}_Ward${record.ward}_GIS${record.gis_id}.pdf`.replace(/[^\w.-]/g, "_");
+  doc.save(filename);
+  showToast("Invoice downloaded successfully.", "success");
+}
+
+function clearAllData() {
+  if (!isEngineLoaded) return showToast("Tax calculation engine is unavailable. Action disabled.", "danger");
+  const recs = getAll();
+  if (!recs.length) return showToast("No records saved to clear.", "warning");
+
+  if (!confirm(`Delete all ${recs.length} records? This cannot be undone.\n\nA backup will be downloaded automatically before deletion.`)) return;
+
+  exportBackup();
+  localStorage.removeItem(KEY);
+  resetFormMode();
+  updateRecordCount();
+  showToast(`All ${recs.length} records cleared (backup downloaded).`, "danger");
+}
+
+function exportBackup(){
+  const recs = getAll();
+  if (!recs.length) return showToast("No records to back up.", "warning");
+  try {
+    const blob = new Blob([JSON.stringify(recs, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `property_records_backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast("Backup exported successfully.", "success");
+  } catch(e) {
+    console.error("Backup export failed:", e);
+    showToast("Backup creation failed: " + e.message, "danger");
+  }
+}
+
+function handleImportBackupFile(event){
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    let imported;
+    try {
+      imported = JSON.parse(reader.result);
+      if (!Array.isArray(imported)) throw new Error("File does not contain a valid records array.");
+    } catch(e) {
+      showToast("Restore failed: " + e.message, "danger");
+      return;
+    }
+
+    const existing = getAll();
+
+    if (existing.length) {
+      const choice = confirm(
+        `You currently have ${existing.length} saved record(s).\n` +
+        `This backup contains ${imported.length} record(s).\n\n` +
+        `Click OK to ADD the backup records to your existing ones.\n` +
+        `Click Cancel to REPLACE all existing records with this backup instead.`
+      );
+      if (choice) {
+        if (!saveAll([...existing, ...imported])) return;
+        showToast(`Added ${imported.length} record(s) from backup.`, "success");
+      } else {
+        if (!confirm(`This will permanently REPLACE all ${existing.length} existing records with the ${imported.length} from backup. Continue?`)) return;
+        if (!saveAll(imported)) return;
+        showToast(`Replaced all records with ${imported.length} backup records.`, "success");
+      }
+    } else {
+      if (!saveAll(imported)) return;
+      showToast(`Restored ${imported.length} record(s) from backup.`, "success");
+    }
+
+    updateRecordCount();
+    resetFormMode();
+  };
+  reader.onerror = () => showToast("Could not read the selected file.", "danger");
+  reader.readAsText(file);
+}
+
+function downloadExcel(){
+  if (typeof XLSX === "undefined") {
+    return showToast("Excel library failed to load.", "danger");
+  }
+
+  const recs = ulbRecords(getAll());
+  if (!recs.length) return showToast(`No records available for ${currentUlbName}.`, "warning");
+
+  const defaultName = `${(currentUlbName || "Property_Tax").replace(/\s+/g, "_")}.xlsx`;
+  const userFilename = prompt(`Exporting ${recs.length} record(s) for ${currentUlbName}. Enter file name:`, defaultName);
+  if (!userFilename) return;
+
+  let finalFilename = userFilename.trim();
+  if (!finalFilename.toLowerCase().endsWith(".xlsx")) {
+    finalFilename += ".xlsx";
+  }
+
+  const WIDE_HEADERS = [
+    "S.No", "ULB Name",
+    ...TOP_COLS.map(k => FIELD_LABELS[k])
+  ];
+
+  FLOORS.forEach(([_, label]) => {
+    FLOOR_FIELDS.forEach(([__, flabel]) => {
+      WIDE_HEADERS.push(`${label} - ${flabel}`);
+    });
+    WIDE_HEADERS.push(`${label} - Tax (Est.)`);
+  });
+
+  WIDE_HEADERS.push(
+    "Total Tax (Est.)",
+    FIELD_LABELS.remarks,
+    FIELD_LABELS.saved_date,
+    FIELD_LABELS.updated_date
+  );
+
+  const rows = [WIDE_HEADERS];
+  let sNo = 1;
+  const capVal = v => typeof v === "string" ? v.toUpperCase() : v;
+
+  const getFloorCols = (entries) => {
+    const cols = FLOOR_FIELDS.map(([k]) => {
+      if (k === "area") {
+        const vals = entries.map(entry => {
+          const isYes = norm(entry.yes_no) === "yes";
+          if (!isYes) return "N/A";
+          const raw = entry.area;
+          if (!raw || raw === "N/A" || raw === "0") return "0";
+          return raw;
+        });
+        return vals.join(", ");
+      }
+      const vals = entries.map(entry => {
+        const val = entry[k];
+        return (!val || val === "N/A") ? "N/A" : val;
+      });
+      if (k === "remarks") return vals[0];
+      const uniqueVals = [...new Set(vals)];
+      return uniqueVals.length === 1 ? uniqueVals[0] : vals.join(", ");
+    });
+
+    const tax = (isEngineLoaded && typeof TaxCalculator !== "undefined" && TaxCalculator.calculateFloorTotalTax)
+      ? TaxCalculator.calculateFloorTotalTax(entries)
+      : 0;
+
+    cols.push(tax > 0 ? Number(tax.toFixed(2)) : 0);
+    return { cols, tax };
+  };
+
+  recs.forEach(r => {
+    const topData = TOP_COLS.map(k => r[k] ?? "");
+    const floorMap = {};
+    FLOORS.forEach(([p]) => {
+      floorMap[p] = r.floors?.[p]?.length ? r.floors[p] : [makeEmptyEntry()];
+    });
+
+    const rowFloorCols = [];
+    let rowTaxTotal = 0;
+
+    FLOORS.forEach(([p]) => {
+      const { cols, tax } = getFloorCols(floorMap[p]);
+      rowFloorCols.push(...cols);
+      rowTaxTotal += tax;
+    });
+
+    const grandTotalTax = Number(rowTaxTotal.toFixed(2));
+
+    rows.push([
+      sNo++,
+      r.ulb_name || currentUlbName,
+      ...topData,
+      ...rowFloorCols,
+      grandTotalTax > 0 ? grandTotalTax : 0,
+      r.remarks ?? "",
+      r.saved_date ?? "",
+      r.updated_date ?? ""
+    ].map(capVal));
+  });
+
+  try {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = WIDE_HEADERS.map(h => ({ wch: Math.max(12, Math.min(30, h.length + 2)) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Property Records");
+    XLSX.writeFile(wb, finalFilename);
+    showToast(`Exported ${recs.length} record(s) to "${finalFilename}"!`, "success");
+  } catch(err) {
+    console.error("XLSX export failed:", err);
+    showToast("Could not generate Excel file: " + err.message, "danger");
+  }
+}
+
+const normHeader = v => norm(v).replace(/[().\/\-_]/g, " ").replace(/\s+/g, " ").trim();
+
+const TOP_COL_ALIASES = {
+  ward: ["ward", "ward no", "ward number", "w no"],
+  gis_id: ["gis id", "gis no", "gis number", "unique id", "uid", "property id", "property no", "house id", "id no"],
+  old_house_no: ["old house no", "old house number", "house no", "house number", "previous house no"],
+  owner_name: ["owner name", "name", "owner", "name of owner", "property owner", "owners name"],
+  father_husband_name: ["father husband name", "s o", "w o", "father name", "husband name", "guardian name", "fh name", "father mother husband name"],
+  address: ["address", "property address", "full address", "location address"],
+  mobile_no: ["mobile no", "mobile number", "phone no", "phone number", "contact no", "contact number", "mobile", "phone", "cell no"],
+  open_plot_area: ["open plot area sq mtr", "open plot area", "plot area", "open area", "vacant area", "vacant land area", "open plot area in sq mtr"],
+  remarks: ["remarks", "notes", "comments", "comment", "pendency", "status", "pending amount", "objection"],
+  saved_date: ["saved date", "date saved", "created date", "entry date"],
+  updated_date: ["updated date", "date updated", "last updated", "modified date"],
+};
+
+const FLOOR_FIELD_ALIASES = {
+  yes_no: ["yes no", "applicable", "available", "yes / no", "yes/no", "yes or no", "y/n"],
+  zone: ["zone f1", "zone", "location zone"],
+  building_type: ["building type f2", "building type", "construction type", "type of building", "structure type"],
+  year: ["year of construction f3", "year of construction", "construction year", "year built", "year"],
+  occupancy: ["occupancy f4", "occupancy", "use type", "usage", "use of property", "use"],
+  occupancy_res: ["residential occupancy", "self occupancy", "residential use"],
+  occupancy_nonres: ["non residential occupancy", "nonresidential occupancy", "commercial occupancy", "non residential use"],
+  area: ["area sq mtr", "area sq meter", "area square meter", "area in sq mtr", "area", "floor area", "built up area", "carpet area", "sq mtr", "sqm"],
+  remarks: ["remarks", "notes", "comments", "comment"],
+};
+
+const FLOOR_KEYWORDS = {
+  basement: ["basement"],
+  ground: ["ground floor", "ground"],
+  first: ["first floor", "1st floor", "first"],
+  second: ["second floor", "2nd floor", "second"],
+  third: ["third floor", "3rd floor", "third"],
+  fourth: ["fourth floor", "4th floor", "fourth"],
+};
+
+const ULB_NAME_ALIASES = ["ulb name", "ulb", "municipality", "corporation name", "corporation"];
+
+function resolveUlbFromName(rawName) {
+  const target = norm(rawName);
+  if (!target) return null;
+  const match = TAX_ENGINES.find(e => norm(e.displayName || "") === target);
+  return match ? { file: match.file, name: match.displayName } : null;
+}
+
+let aliasesPrimed = false;
+function primeHeaderAliases() {
+  if (aliasesPrimed) return;
+  TOP_COLS.forEach(k => TOP_COL_ALIASES[k].unshift(normHeader(FIELD_LABELS[k])));
+  ["remarks","saved_date","updated_date"].forEach(k => TOP_COL_ALIASES[k].unshift(normHeader(FIELD_LABELS[k])));
+  FLOOR_FIELDS.forEach(([k,label]) => FLOOR_FIELD_ALIASES[k].unshift(normHeader(label)));
+  aliasesPrimed = true;
+}
+
+function findAliasMatch(headerNorm, aliasMap) {
+  for (const key in aliasMap) {
+    if (aliasMap[key].some(a => headerNorm === a)) return key;
+  }
+  let best = null, bestLen = 0;
+  for (const key in aliasMap) {
+    for (const a of aliasMap[key]) {
+      if (a && headerNorm.includes(a) && a.length > bestLen) { best = key; bestLen = a.length; }
+    }
+  }
+  return best;
+}
+
+function isBlankOrNA(val) {
+  const v = norm(val);
+  return v === "" || v === "na" || v === "n/a";
+}
+
+function normalizeFieldValue(fieldKey, rawVal) {
+  const trimmed = String(rawVal ?? "").trim();
+  const lower = trimmed.toLowerCase();
+
+  if (fieldKey === "yes_no") {
+    if (lower === "yes" || lower === "y" || lower === "true" || lower === "1") return "Yes";
+    if (lower === "no" || lower === "n" || lower === "false" || lower === "0") return "No";
+  }
+
+  const fieldDef = FLOOR_FIELDS.find(([k]) => k === fieldKey);
+  if (fieldDef && fieldDef[2]) {
+    const matched = fieldDef[2].find(opt => opt.toLowerCase() === lower);
+    if (matched) return matched;
+  }
+
+  return trimmed;
+}
+
+function buildHeaderMaps(headerRow) {
+  const topColMap = {};
+  const floorFieldMap = Object.fromEntries(FLOORS.map(([p]) => [p, {}]));
+  let ulbColIdx;
+
+  headerRow.forEach((raw, idx) => {
+    const hn = normHeader(raw);
+    if (!hn) return;
+
+    if (ulbColIdx === undefined && ULB_NAME_ALIASES.some(a => hn === a || hn.includes(a))) {
+      ulbColIdx = idx;
+      return;
+    }
+
+    let floorKey = null, floorLen = 0;
+    for (const fk in FLOOR_KEYWORDS) {
+      for (const kw of FLOOR_KEYWORDS[fk]) {
+        if (hn.includes(kw) && kw.length > floorLen) { floorKey = fk; floorLen = kw.length; }
+      }
+    }
+
+    if (floorKey) {
+      const fieldKey = findAliasMatch(hn, FLOOR_FIELD_ALIASES);
+      if (fieldKey && floorFieldMap[floorKey][fieldKey] === undefined) {
+        floorFieldMap[floorKey][fieldKey] = idx;
+        return;
+      }
+    }
+
+    const topKey = findAliasMatch(hn, TOP_COL_ALIASES);
+    if (topKey && topColMap[topKey] === undefined) {
+      topColMap[topKey] = idx;
+    }
+  });
+
+  return { topColMap, floorFieldMap, ulbColIdx };
+}
+
+function scoreHeaderRow(rawRow) {
+  let score = 0;
+  rawRow.forEach(cell => {
+    const hn = normHeader(cellToString(cell));
+    if (hn && (findAliasMatch(hn, TOP_COL_ALIASES) || findAliasMatch(hn, FLOOR_FIELD_ALIASES))) score++;
+  });
+  return score;
+}
+
+function detectHeaderRowIndex(rows) {
+  const scanLimit = Math.min(rows.length, 8);
+  let bestIdx = 0, bestScore = -1;
+  for (let i = 0; i < scanLimit; i++) {
+    const s = scoreHeaderRow((rows[i] || []).map(cellToString));
+    if (s > bestScore) { bestScore = s; bestIdx = i; }
+  }
+  return bestIdx;
+}
+
+function rowHasFloorKeyword(rawRow) {
+  return rawRow.some(cell => {
+    const hn = normHeader(cellToString(cell));
+    return hn && Object.values(FLOOR_KEYWORDS).some(kws => kws.some(kw => hn.includes(kw)));
+  });
+}
+
+function forwardFillRow(rawRow) {
+  const out = [];
+  let last = "";
+  rawRow.forEach(cell => {
+    const v = cellToString(cell);
+    if (v) last = v;
+    out.push(last);
+  });
+  return out;
+}
+
+function buildEffectiveHeaderRow(rows, headerRowIdx) {
+  const fieldRow = (rows[headerRowIdx] || []).map(cellToString);
+  let groupRow = null;
+  for (let back = 1; back <= 2 && headerRowIdx - back >= 0; back++) {
+    const candidate = (rows[headerRowIdx - back] || []).map(cellToString);
+    if (rowHasFloorKeyword(candidate)) { groupRow = forwardFillRow(candidate); break; }
+  }
+  if (!groupRow) return fieldRow;
+  return fieldRow.map((f, i) => {
+    const g = groupRow[i] || "";
+    return (g && normHeader(g) !== normHeader(f)) ? `${g} ${f}` : f;
+  });
+}
+
+function importWideFormat(rows, rawHeaderRow, dataStartIdx) {
+  const { topColMap, floorFieldMap, ulbColIdx } = buildHeaderMaps(rawHeaderRow);
+  const recsByKey = new Map();
+  let skipped = 0, unmatchedUlb = 0;
+
+  for (let i = dataStartIdx; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every(c => cellToString(c) === "")) continue;
+
+    const wardIdx = topColMap["ward"];
+    const gisIdx = topColMap["gis_id"];
+    const ward = wardIdx !== undefined ? cellToString(row[wardIdx]) : "";
+    const gis = gisIdx !== undefined ? cellToString(row[gisIdx]) : "";
+
+    if (!ward || !gis) {
+      skipped++;
+      continue;
+    }
+
+    let ulbFile = currentUlbFile, ulbName = currentUlbName;
+    if (ulbColIdx !== undefined) {
+      const rawUlb = cellToString(row[ulbColIdx]);
+      const resolved = resolveUlbFromName(rawUlb);
+      if (resolved) {
+        ulbFile = resolved.file;
+        ulbName = resolved.name;
+      } else if (rawUlb) {
+        unmatchedUlb++;
+        ulbName = rawUlb;
+      }
+    }
+
+    const recKey = norm(ward) + "|" + norm(gis) + "|" + norm(ulbFile);
+
+    if (!recsByKey.has(recKey)) {
+      const rec = {
+        ulb_file: ulbFile,
+        ulb_name: ulbName,
+        floors: Object.fromEntries(FLOORS.map(([p]) => [p, []]))
+      };
+
+      TOP_COLS.forEach(k => {
+        const cIdx = topColMap[k];
+        rec[k] = cIdx !== undefined ? cellToString(row[cIdx]) : "";
+      });
+
+      ["remarks", "saved_date", "updated_date"].forEach(k => {
+        const cIdx = topColMap[k];
+        rec[k] = cIdx !== undefined ? cellToString(row[cIdx]) : "";
+      });
+
+      recsByKey.set(recKey, rec);
+    }
+
+    const currentRec = recsByKey.get(recKey);
+    const splitCell = raw => raw === "" ? [""] : raw.split(",").map(s => s.trim());
+
+    FLOORS.forEach(([p]) => {
+      const fMap = floorFieldMap[p];
+      const fieldParts = {};
+      let maxParts = 1;
+      let remarksRaw;
+
+      FLOOR_FIELDS.forEach(([fieldKey]) => {
+        const cIdx = fMap[fieldKey];
+        if (cIdx !== undefined) {
+          if (fieldKey === "remarks") {
+            remarksRaw = cellToString(row[cIdx]);
+            return;
+          }
+          const parts = splitCell(cellToString(row[cIdx]));
+          fieldParts[fieldKey] = parts;
+          if (parts.length > maxParts) maxParts = parts.length;
+        }
+      });
+
+      let occResParts = null, occNonresParts = null;
+      if (fMap.occupancy_res !== undefined) {
+        occResParts = splitCell(cellToString(row[fMap.occupancy_res]));
+        if (occResParts.length > maxParts) maxParts = occResParts.length;
+      }
+      if (fMap.occupancy_nonres !== undefined) {
+        occNonresParts = splitCell(cellToString(row[fMap.occupancy_nonres]));
+        if (occNonresParts.length > maxParts) maxParts = occNonresParts.length;
+      }
+
+      for (let pi = 0; pi < maxParts; pi++) {
+        let ynVal = "No";
+        if (fieldParts.yes_no) {
+          const rawYn = fieldParts.yes_no[pi] !== undefined ? fieldParts.yes_no[pi] : fieldParts.yes_no[fieldParts.yes_no.length - 1];
+          if (!isBlankOrNA(rawYn)) ynVal = normalizeFieldValue("yes_no", rawYn);
+        }
+
+        const isYes = norm(ynVal) === "yes";
+        const entry = makeEmptyEntry(isYes ? "Yes" : "No");
+        let hasData = false;
+
+        FLOOR_FIELDS.forEach(([fieldKey]) => {
+          if (fieldKey === "yes_no") {
+            entry.yes_no = isYes ? "Yes" : "No";
+            if (isYes) hasData = true;
+            return;
+          }
+
+          const parts = fieldParts[fieldKey];
+          if (parts !== undefined) {
+            const val = fieldKey === "area" ? parts[pi] : (parts[pi] !== undefined ? parts[pi] : parts[parts.length - 1]);
+            if (val !== undefined && !isBlankOrNA(val)) {
+              entry[fieldKey] = normalizeFieldValue(fieldKey, val);
+              hasData = true;
+            } else {
+              if (fieldKey === "area") {
+                entry.area = (pi === 0 && isYes) ? "0" : "N/A";
+              } else {
+                entry[fieldKey] = "N/A";
+              }
+            }
+          }
+        });
+
+        if (!isYes) {
+          entry.area = "N/A";
+        } else if (pi === 0 && (!entry.area || entry.area === "N/A")) {
+          entry.area = "0";
+        }
+
+        if (remarksRaw !== undefined) {
+          if (pi === 0) {
+            if (!isBlankOrNA(remarksRaw)) {
+              entry.remarks = remarksRaw;
+              hasData = true;
+            } else {
+              entry.remarks = "N/A";
+            }
+          } else {
+            entry.remarks = "N/A";
+          }
+        }
+
+        if (occResParts || occNonresParts) {
+          const occRes = occResParts ? (occResParts[pi] !== undefined ? occResParts[pi] : occResParts[occResParts.length - 1]) : "";
+          const occNonres = occNonresParts ? (occNonresParts[pi] !== undefined ? occNonresParts[pi] : occNonresParts[occNonresParts.length - 1]) : "";
+          const picked = occRes || occNonres;
+          if (picked) {
+            entry.occupancy = normalizeFieldValue("occupancy", picked);
+            hasData = true;
+          }
+        }
+
+        if (hasData) {
+          currentRec.floors[p].push(entry);
+        }
+      }
+    });
+  }
+
+  for (const r of recsByKey.values()) {
+    FLOORS.forEach(([p]) => {
+      if (!r.floors[p].length) {
+        r.floors[p] = [makeEmptyEntry()];
+      }
+    });
+  }
+
+  return { records: [...recsByKey.values()].map(fillBlanksWithNA), skipped, unmatchedUlb };
+}
+
+function handleImportFile(evt){
+  const file = evt.target.files[0];
+  evt.target.value = "";
+  if (!file) return;
+
+  if (typeof XLSX === "undefined") {
+    return showToast("Excel library failed to load.", "danger");
+  }
+
+  primeHeaderAliases();
+
+  const reader = new FileReader();
+  reader.onerror = () => showToast("Could not read file.", "danger");
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
+
+      if (!rows.length) return showToast("The selected Excel file is empty.", "warning");
+
+      const headerRowIdx = detectHeaderRowIndex(rows);
+      const rawHeaderRow = buildEffectiveHeaderRow(rows, headerRowIdx);
+
+      const { topColMap: headerCheckMap } = buildHeaderMaps(rawHeaderRow);
+      const hasWard = headerCheckMap.ward !== undefined;
+      const hasGis = headerCheckMap.gis_id !== undefined;
+
+      if (!hasWard || !hasGis) {
+        return showToast("Import failed: Missing Ward and GIS ID header columns.", "danger");
+      }
+
+      const result = importWideFormat(rows, rawHeaderRow, headerRowIdx + 1);
+      const recs = getAll();
+      let added = 0, updated = 0;
+
+      result.records.forEach(record => {
+        const idx = findIndex(recs, record.ward, record.gis_id, record.ulb_file);
+        if (idx === -1) {
+          record.saved_date = record.saved_date && record.saved_date !== "N/A" ? record.saved_date : new Date().toLocaleString("en-IN");
+          recs.push(record);
+          added++;
+        } else {
+          record.saved_date = recs[idx].saved_date || new Date().toLocaleString("en-IN");
+          record.updated_date = new Date().toLocaleString("en-IN");
+          recs[idx] = record;
+          updated++;
+        }
+      });
+
+      if (!saveAll(recs)) return;
+      updateRecordCount();
+      resetFormMode();
+
+      const summaryParts = [`Added: ${added}`, `Updated: ${updated}`];
+      if (result.skipped) summaryParts.push(`Skipped: ${result.skipped}`);
+      showToast(`Import complete (${summaryParts.join(", ")})`, "success", 6000);
+    } catch (err) {
+      console.error(err);
+      showToast("Excel processing error: " + err.message, "danger");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* App Initialization */
+buildUlbMenu();
+updateRecordCount();
+window.addEventListener("resize", recalcFloorColumns);
+$("form").addEventListener("submit", e => { e.preventDefault(); });
+</script>
+</body>
+</html>
