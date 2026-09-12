@@ -529,6 +529,12 @@
     height: 28px;
     font-size: 12.5px;
   }
+  .ftd input:disabled, .ftd select:disabled {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    opacity: 0.75;
+  }
   .ftd select {
     padding-left: 8px;
     padding-right: 34px !important;
@@ -548,6 +554,31 @@
   .floor-add:hover { background: var(--accent-hover); }
   .floor-remove { background: var(--danger); }
   .floor-remove:hover { background: var(--danger-hover); }
+
+  .floor-level-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-card);
+  }
+  .floor-level-actions:empty { display: none; }
+  .floor-level-add, .floor-level-remove {
+    border: none;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 700;
+    padding: 8px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .15s var(--ease), opacity .15s var(--ease);
+  }
+  .floor-level-add { background: var(--success); }
+  .floor-level-add:hover { background: var(--success-hover); }
+  .floor-level-remove { background: var(--slate); }
+  .floor-level-remove:hover { background: var(--slate-hover); }
 
   @media (max-width: 900px) {
     .floor-grid { grid-template-columns: 1fr !important; }
@@ -679,7 +710,10 @@
 
   <div class="panel"><div class="grid" id="topGrid"></div></div>
 
-  <div class="floor-wrap"><div class="floor-grid" id="floorGrid"></div></div>
+  <div class="floor-wrap">
+    <div class="floor-grid" id="floorGrid"></div>
+    <div class="floor-level-actions" id="floorLevelActions"></div>
+  </div>
 
   <div class="tax-summary-bar">
     <span>Total Built-Up Estimated Tax:</span>
@@ -793,8 +827,14 @@ function refreshOptionsFromEngine() {
   FLOOR_COLS = FLOOR_FIELDS.map(f => f[1]);
 }
 
-const FLOORS = [["basement","Basement"],["ground","Ground Floor"],["first","First Floor"],
-                 ["second","Second Floor"],["third","Third Floor"],["fourth","Fourth Floor"]];
+// Master list of every floor the app knows how to render/export.
+const ALL_FLOORS = [["basement","Basement"],["ground","Ground Floor"],["first","First Floor"],
+                 ["second","Second Floor"],["third","Third Floor"],["fourth","Fourth Floor"],
+                 ["fifth","Fifth Floor"],["sixth","Sixth Floor"]];
+// How many floors (from the top of ALL_FLOORS) are shown by default -- through "Second Floor".
+const DEFAULT_FLOOR_LIMIT = 4;
+// Floors currently visible/editable in the form. Always a contiguous prefix of ALL_FLOORS.
+let activeFloors = ALL_FLOORS.slice(0, DEFAULT_FLOOR_LIMIT);
 
 const makeEmptyEntry = (yesNo = "No") => ({
   yes_no: norm(yesNo) === "yes" ? "Yes" : "No",
@@ -805,10 +845,58 @@ const makeEmptyEntry = (yesNo = "No") => ({
   area: norm(yesNo) === "yes" ? "0" : "N/A",
   remarks: ""
 });
-const defaultFloorEntries = () => Object.fromEntries(FLOORS.map(([p]) => [p, [makeEmptyEntry()]]));
+const defaultFloorEntries = () => Object.fromEntries(activeFloors.map(([p]) => [p, [makeEmptyEntry()]]));
+
+// A single field value counts as "real data" if it's non-blank and differs from the
+// blank/default value that field would have on a freshly-initialized "No" entry.
+function isMeaningfulFloorValue(key, val){
+  if (val === undefined || val === null || val === "" || val === "N/A") return false;
+  if (key === "area") return val !== "0";
+  if (key === "zone") return val !== (ZONE[0] || "");
+  if (key === "building_type") return val !== (BUILD[0] || "");
+  if (key === "year") return val !== (YEAR[0] || "");
+  if (key === "occupancy") return val !== (OCCUPANCY[0] || "");
+  return true;
+}
+
+// A floor counts as "in use" if it has more than one entry, is marked Yes, or ANY field
+// (area, zone, building type, year, occupancy, remarks) has a real, non-default value.
+function floorHasData(entries){
+  if (!entries || !entries.length) return false;
+  if (entries.length > 1) return true;
+  return entries.some(e =>
+    norm(e.yes_no) === "yes" ||
+    isMeaningfulFloorValue("area", e.area) ||
+    isMeaningfulFloorValue("zone", e.zone) ||
+    isMeaningfulFloorValue("building_type", e.building_type) ||
+    isMeaningfulFloorValue("year", e.year) ||
+    isMeaningfulFloorValue("occupancy", e.occupancy) ||
+    (e.remarks && e.remarks !== "N/A" && String(e.remarks).trim() !== "")
+  );
+}
+
+// Strip out any floor key whose entries have no real data, so empty floors are never persisted.
+function pruneFloorsWithNoData(floors){
+  const result = {};
+  Object.keys(floors || {}).forEach(p => {
+    if (floorHasData(floors[p])) result[p] = floors[p];
+  });
+  return result;
+}
+
+// Determine which prefix of ALL_FLOORS should be active for a given saved record,
+// always showing at least the default (through Second Floor), extended if the record has more.
+function activeFloorsFromRecord(record){
+  let maxIdx = DEFAULT_FLOOR_LIMIT - 1;
+  ALL_FLOORS.forEach(([p], i) => {
+    if (floorHasData(record.floors?.[p])) maxIdx = Math.max(maxIdx, i);
+  });
+  return ALL_FLOORS.slice(0, maxIdx + 1);
+}
 
 function floorEntriesFromRecord(record){
-  return Object.fromEntries(FLOORS.map(([p]) => {
+  activeFloors = activeFloorsFromRecord(record);
+  return Object.fromEntries(activeFloors.map(([p]) => {
     const entries = record.floors?.[p]?.length ? record.floors[p] : [makeEmptyEntry()];
     const firstRem = entries.find(e => e.remarks && e.remarks !== "N/A")?.remarks || entries[0]?.remarks || "";
     return [p, entries.map(e => {
@@ -823,6 +911,47 @@ function floorEntriesFromRecord(record){
   }));
 }
 let floorEntries = defaultFloorEntries();
+
+// Add the next floor level (e.g. Third Floor) beyond what's currently shown.
+function addFloorLevel(){
+  syncFloorDomToState();
+  if (activeFloors.length >= ALL_FLOORS.length) return;
+  const next = ALL_FLOORS[activeFloors.length];
+  activeFloors = ALL_FLOORS.slice(0, activeFloors.length + 1);
+  if (!floorEntries[next[0]]) floorEntries[next[0]] = [makeEmptyEntry()];
+  buildFloorGrid();
+  recalcFloorColumns();
+  updateUiTaxCalculations();
+  showToast(`${next[1]} added.`, "success");
+}
+
+// Remove the most recently added floor level (never below the default limit).
+function removeFloorLevel(){
+  syncFloorDomToState();
+  if (activeFloors.length <= DEFAULT_FLOOR_LIMIT) return;
+  const removed = activeFloors[activeFloors.length - 1];
+  if (floorHasData(floorEntries[removed[0]]) && !confirm(`${removed[1]} has data entered. Remove it anyway?`)) return;
+  delete floorEntries[removed[0]];
+  activeFloors = activeFloors.slice(0, -1);
+  buildFloorGrid();
+  recalcFloorColumns();
+  updateUiTaxCalculations();
+}
+
+function renderFloorLevelActions(){
+  const el = $("floorLevelActions");
+  if (!el) return;
+  let html = "";
+  if (activeFloors.length < ALL_FLOORS.length) {
+    const nextLabel = ALL_FLOORS[activeFloors.length][1];
+    html += `<button type="button" class="floor-level-add" onclick="addFloorLevel()">+ Add ${nextLabel}</button>`;
+  }
+  if (activeFloors.length > DEFAULT_FLOOR_LIMIT) {
+    const lastLabel = activeFloors[activeFloors.length - 1][1];
+    html += `<button type="button" class="floor-level-remove" onclick="removeFloorLevel()">&minus; Remove ${lastLabel}</button>`;
+  }
+  el.innerHTML = html;
+}
 
 function probeUlbName(fileUrl) {
   return new Promise((resolve) => {
@@ -967,6 +1096,7 @@ function switchTaxEngine(filePath, isInitialLoad = false) {
     refreshOptionsFromEngine();
     buildTopGrid();
     if (!wasEditing && currentWardVal && $("ward")) $("ward").value = currentWardVal;
+    activeFloors = ALL_FLOORS.slice(0, DEFAULT_FLOOR_LIMIT);
     floorEntries = defaultFloorEntries();
     buildFloorGrid();
     recalcFloorColumns();
@@ -988,6 +1118,7 @@ function switchTaxEngine(filePath, isInitialLoad = false) {
     toggleActionButtons(false);
     refreshOptionsFromEngine();
     buildTopGrid();
+    activeFloors = ALL_FLOORS.slice(0, DEFAULT_FLOOR_LIMIT);
     floorEntries = defaultFloorEntries();
     buildFloorGrid();
     recalcFloorColumns();
@@ -1063,20 +1194,21 @@ function setNavButtonsVisible(visible) {
 }
 
 function handleYesNoChange(selectEl, p, idx) {
+  syncFloorDomToState();
   const isYes = norm(selectEl.value) === "yes";
-  const areaInput = document.querySelector(`input[name="${p}__${idx}__area"]`);
-  if (areaInput) {
-    if (isYes) {
-      if (areaInput.value === "N/A" || areaInput.value === "") areaInput.value = "0";
-    } else {
-      areaInput.value = "N/A";
-    }
-  }
   if (floorEntries[p]?.[idx]) {
     floorEntries[p][idx].yes_no = isYes ? "Yes" : "No";
-    floorEntries[p][idx].area = isYes ? (!floorEntries[p][idx].area || floorEntries[p][idx].area === "N/A" ? "0" : floorEntries[p][idx].area) : "N/A";
+    const currentArea = floorEntries[p][idx].area;
+    const isEmptyArea = !currentArea || isBlankOrNA(currentArea);
+    if (isYes) {
+      floorEntries[p][idx].area = isEmptyArea ? "0" : currentArea;
+    } else if (isEmptyArea) {
+      floorEntries[p][idx].area = "N/A";
+    }
+    // else: a real area value already exists for this floor entry -- keep it as-is
+    // instead of overwriting it just because Yes/No was switched to "No".
   }
-  updateUiTaxCalculations();
+  buildFloorGrid();
   recalcFloorColumns();
 }
 
@@ -1084,7 +1216,7 @@ function updateUiTaxCalculations() {
   syncFloorDomToState();
   let grandTotal = 0;
 
-  FLOORS.forEach(([p]) => {
+  activeFloors.forEach(([p]) => {
     (floorEntries[p] || []).forEach((entry, idx) => {
       let entryTax = 0;
       if (isEngineLoaded && typeof TaxCalculator !== "undefined" && typeof TaxCalculator.calculateEntryTax === "function") {
@@ -1110,7 +1242,7 @@ function buildFloorGrid(){
     + `<div class="fth">Tax (₹)</div>`
     + `<div class="fth">Actions</div>`;
 
-  FLOORS.forEach(([p,label]) => {
+  activeFloors.forEach(([p,label]) => {
     const entries = floorEntries[p] || [makeEmptyEntry()];
     const count = entries.length;
     html += `<div class="frow-label" data-floor="${p}" data-count="${count}">${label}</div>`;
@@ -1119,16 +1251,18 @@ function buildFloorGrid(){
       FLOOR_FIELDS.slice(0, 6).forEach(([key, flabel, options]) => {
         const name = `${p}__${idx}__${key}`;
         let field;
+        const isYesEntry = norm(entry.yes_no) === "yes";
+        const disabledAttr = (key !== "yes_no" && !isYesEntry) ? "disabled" : "";
         if (key === "yes_no") {
           field = `<select name="${name}" onchange="handleYesNoChange(this, '${p}', ${idx})">
             ${options.map(v => `<option value="${v}"${norm(v) === norm(entry[key]) ? " selected" : ""}>${v}</option>`).join("")}
           </select>`;
         } else if (options) {
-          field = `<select name="${name}" onchange="handleFloorSelectChange()">
+          field = `<select name="${name}" ${disabledAttr} onchange="handleFloorSelectChange()">
             ${options.length ? options.map(v => `<option value="${v}"${v === entry[key] ? " selected" : ""}>${v}</option>`).join("") : `<option value="">Select</option>`}
           </select>`;
         } else {
-          field = `<input name="${name}" value="${esc(entry[key])}" placeholder="Sq. Mtr." oninput="updateUiTaxCalculations()" onchange="updateUiTaxCalculations()">`;
+          field = `<input name="${name}" ${disabledAttr} value="${esc(entry[key])}" placeholder="Sq. Mtr." oninput="updateUiTaxCalculations()" onchange="updateUiTaxCalculations()">`;
         }
         html += `<div class="ftd" data-label="${flabel}">${field}</div>`;
       });
@@ -1150,6 +1284,7 @@ function buildFloorGrid(){
     });
   });
   $("floorGrid").innerHTML = html;
+  renderFloorLevelActions();
   updateUiTaxCalculations();
 }
 
@@ -1222,7 +1357,7 @@ function getComputedFloorColumnWidths() {
   const fontInput = "12.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
   let maxFloorLabelWidth = textWidth("Floor", fontHeader);
-  FLOORS.forEach(([_, label]) => {
+  ALL_FLOORS.forEach(([_, label]) => {
     maxFloorLabelWidth = Math.max(maxFloorLabelWidth, textWidth(label, fontLabel));
   });
   const colFloorWidth = Math.ceil(maxFloorLabelWidth) + 30;
@@ -1365,6 +1500,7 @@ function resetFormMode(){
   $("invoiceBtn").style.display = "none";
   lockKeys(false);
   setNavButtonsVisible(false);
+  activeFloors = ALL_FLOORS.slice(0, DEFAULT_FLOOR_LIMIT);
   floorEntries = defaultFloorEntries();
   buildFloorGrid();
   recalcFloorColumns();
@@ -1432,7 +1568,9 @@ function navigateGisRecord(direction) {
 function readFormRecord(){
   const fd = Object.fromEntries(new FormData($("form")).entries());
   const record = {};
-  const floors = Object.fromEntries(FLOORS.map(([p]) => [p, (floorEntries[p] || []).map(() => ({}))]));
+  // Disabled fields (e.g. when Yes/No is "No") are excluded by FormData, so start each entry
+  // from its current in-memory state and let submitted (enabled) fields overwrite it below.
+  const floors = Object.fromEntries(activeFloors.map(([p]) => [p, (floorEntries[p] || []).map(e => ({ ...e }))]));
 
   Object.keys(fd).forEach(k => {
     const parts = k.split("__");
@@ -1448,14 +1586,14 @@ function readFormRecord(){
     }
   });
 
-  FLOORS.forEach(([p]) => {
+  activeFloors.forEach(([p]) => {
     const floorRemark = floorEntries[p]?.[0]?.remarks || "";
     floors[p].forEach(e => {
       if (!e.remarks) e.remarks = floorRemark;
     });
   });
 
-  record.floors = floors;
+  record.floors = pruneFloorsWithNoData(floors);
   record.ulb_file = currentUlbFile;
   record.ulb_name = currentUlbName;
   return fillBlanksWithNA(record);
@@ -1518,7 +1656,7 @@ function downloadInvoice() {
 
   const floorRows = [];
   let totalTax = 0;
-  FLOORS.forEach(([p, label]) => {
+  ALL_FLOORS.forEach(([p, label]) => {
     (record.floors?.[p] || []).forEach(entry => {
       if (norm(entry.yes_no) !== "yes") return;
       let tax = 0;
@@ -1704,12 +1842,22 @@ function downloadExcel(){
     finalFilename += ".xlsx";
   }
 
+  // Export starts with columns through Second Floor by default, and only adds columns
+  // for Third/Fourth Floor if at least one exported record actually has data there.
+  let exportMaxIdx = DEFAULT_FLOOR_LIMIT - 1;
+  recs.forEach(r => {
+    ALL_FLOORS.forEach(([p], i) => {
+      if (floorHasData(r.floors?.[p])) exportMaxIdx = Math.max(exportMaxIdx, i);
+    });
+  });
+  const exportFloors = ALL_FLOORS.slice(0, exportMaxIdx + 1);
+
   const WIDE_HEADERS = [
     "S.No", "ULB Name",
     ...TOP_COLS.map(k => FIELD_LABELS[k])
   ];
 
-  FLOORS.forEach(([_, label]) => {
+  exportFloors.forEach(([_, label]) => {
     FLOOR_FIELDS.forEach(([__, flabel]) => {
       WIDE_HEADERS.push(`${label} - ${flabel}`);
     });
@@ -1731,10 +1879,10 @@ function downloadExcel(){
     const cols = FLOOR_FIELDS.map(([k]) => {
       if (k === "area") {
         const vals = entries.map(entry => {
-          const isYes = norm(entry.yes_no) === "yes";
-          if (!isYes) return "N/A";
           const raw = entry.area;
-          if (!raw || raw === "N/A" || raw === "0") return "0";
+          if (!raw || isBlankOrNA(raw)) {
+            return norm(entry.yes_no) === "yes" ? "0" : "N/A";
+          }
           return raw;
         });
         return vals.join(", ");
@@ -1759,14 +1907,14 @@ function downloadExcel(){
   recs.forEach(r => {
     const topData = TOP_COLS.map(k => r[k] ?? "");
     const floorMap = {};
-    FLOORS.forEach(([p]) => {
+    exportFloors.forEach(([p]) => {
       floorMap[p] = r.floors?.[p]?.length ? r.floors[p] : [makeEmptyEntry()];
     });
 
     const rowFloorCols = [];
     let rowTaxTotal = 0;
 
-    FLOORS.forEach(([p]) => {
+    exportFloors.forEach(([p]) => {
       const { cols, tax } = getFloorCols(floorMap[p]);
       rowFloorCols.push(...cols);
       rowTaxTotal += tax;
@@ -1834,6 +1982,8 @@ const FLOOR_KEYWORDS = {
   second: ["second floor", "2nd floor", "second"],
   third: ["third floor", "3rd floor", "third"],
   fourth: ["fourth floor", "4th floor", "fourth"],
+  fifth: ["fifth floor", "5th floor", "fifth"],
+  sixth: ["sixth floor", "6th floor", "sixth"],
 };
 
 const ULB_NAME_ALIASES = ["ulb name", "ulb", "municipality", "corporation name", "corporation"];
@@ -1892,7 +2042,7 @@ function normalizeFieldValue(fieldKey, rawVal) {
 
 function buildHeaderMaps(headerRow) {
   const topColMap = {};
-  const floorFieldMap = Object.fromEntries(FLOORS.map(([p]) => [p, {}]));
+  const floorFieldMap = Object.fromEntries(ALL_FLOORS.map(([p]) => [p, {}]));
   let ulbColIdx;
 
   headerRow.forEach((raw, idx) => {
@@ -2017,7 +2167,7 @@ function importWideFormat(rows, rawHeaderRow, dataStartIdx) {
       const rec = {
         ulb_file: ulbFile,
         ulb_name: ulbName,
-        floors: Object.fromEntries(FLOORS.map(([p]) => [p, []]))
+        floors: Object.fromEntries(ALL_FLOORS.map(([p]) => [p, []]))
       };
 
       TOP_COLS.forEach(k => {
@@ -2036,7 +2186,7 @@ function importWideFormat(rows, rawHeaderRow, dataStartIdx) {
     const currentRec = recsByKey.get(recKey);
     const splitCell = raw => raw === "" ? [""] : raw.split(",").map(s => s.trim());
 
-    FLOORS.forEach(([p]) => {
+    ALL_FLOORS.forEach(([p]) => {
       const fMap = floorFieldMap[p];
       const fieldParts = {};
       let maxParts = 1;
@@ -2099,10 +2249,10 @@ function importWideFormat(rows, rawHeaderRow, dataStartIdx) {
           }
         });
 
-        if (!isYes) {
-          entry.area = "N/A";
-        } else if (pi === 0 && (!entry.area || entry.area === "N/A")) {
+        if (isYes && pi === 0 && (!entry.area || entry.area === "N/A")) {
           entry.area = "0";
+        } else if (isBlankOrNA(entry.area)) {
+          entry.area = "N/A";
         }
 
         if (remarksRaw !== undefined) {
@@ -2136,11 +2286,7 @@ function importWideFormat(rows, rawHeaderRow, dataStartIdx) {
   }
 
   for (const r of recsByKey.values()) {
-    FLOORS.forEach(([p]) => {
-      if (!r.floors[p].length) {
-        r.floors[p] = [makeEmptyEntry()];
-      }
-    });
+    r.floors = pruneFloorsWithNoData(r.floors);
   }
 
   return { records: [...recsByKey.values()].map(fillBlanksWithNA), skipped, unmatchedUlb };
