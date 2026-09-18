@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Property Records Manager</title>
+<title>Property Tax</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -727,7 +727,7 @@
       </svg>
     </div>
     <h3>Select Urban Local Body</h3>
-    <p>Please select your municipality to proceed.</p>
+    <p>Please select ULB to proceed.</p>
     
     <div class="modal-select-wrapper">
       <svg class="select-icon-left" viewBox="0 0 24 24">
@@ -748,7 +748,7 @@
 <div class="wrap">
 <form id="form">
   <div class="title-bar">
-    <span class="title-text" id="appHeaderTitle">Property Tax Manager</span>
+    <span class="title-text" id="appHeaderTitle">Property Tax</span>
     <div class="engine-select-wrap">
       <label for="ulbSelect">ULB Name:</label>
       <select id="ulbSelect" onchange="switchTaxEngine(this.value)">
@@ -765,7 +765,7 @@
   </div>
 
   <div class="tax-summary-bar">
-    <span>Total Built-Up Estimated Tax:</span>
+    <span>Total Estimated Tax:</span>
     <strong id="totalTaxDisplay">₹0.00</strong>
   </div>
 
@@ -978,50 +978,34 @@ const TAX_ENGINES_REGISTRY = {
     ULB_NAME: "MC Nahan",
     OPTIONS: {
       WARD: ["Ward 1", "Ward 2", "Ward 3", "Ward 4", "Ward 5", "Ward 6", "Ward 7", "Ward 8", "Ward 9", "Ward 10", "Ward 11", "Ward 12", "Ward 13"],
-      ZONE: ["N/A", "A", "B", "C"],
-      BUILD: ["N/A", "PUCCA", "SEMI-PUCCA", "KUCHA"],
-      YEAR: ["N/A", "BEFORE 1970", "1971 TO 1980", "1981 TO 2000", "2001 TO 2020", "2021 ONWARDS"],
-      OCCUPANCY: ["N/A", "SELF RESIDENTIAL", "LETOUT RESIDENTIAL", "COMMERCIAL", "INSTITUTIONAL", "OTHERS"]
+      ZONE: ["N/A"],
+      BUILD: ["N/A", "PUCCA", "KUCHA", "SEMI-PUCCA"],
+      YEAR: ["N/A"],
+      OCCUPANCY: [
+        "N/A", "SELF RESIDENTIAL", "LETOUT RESIDENTIAL", "UNDER CONSTRUCTION", "CATTLE SHED", "HOTELS",
+        "SHOWROOMS", "RESTAURANT", "BARS", "BANKS", "ATMS", "CALL CENTRE", "MARRIAGE HALL", "TRAVEL AGENCY",
+        "MOBILE TOWER", "COACHING", "SHOPS", "SCHOOL", "COLLEGES", "EDUCATIONAL INSTITUTIONS", "OFFICES",
+        "HOSTEL", "HOSPITAL", "THEATRE", "CLUBS", "PAYING GUEST HOUSE", "GUEST HOUSE", "GODOWNS", "STORE",
+        "DHABAS", "STALL", "OTHERS", "PUBLIC WORSHIP", "BURIAL & CREMATION"
+      ]
     },
-    calculateEntryTax(entry) {
-      if (!entry || String(entry.yes_no ?? "").trim().toUpperCase() !== "YES") return 0;
-      const area = parseFloat(entry.area) || 0;
-      if (area <= 0) return 0;
-      const occ = String(entry.occupancy ?? "").trim().toUpperCase();
-      const rate = occ.includes("COMMERCIAL") ? 20 : 10;
-      return Number((area * rate).toFixed(2));
-    },
-    calculateFloorTotalTax(entries) {
-      if (!Array.isArray(entries)) return 0;
-      const sum = entries.reduce((acc, entry) => acc + this.calculateEntryTax(entry), 0);
-      return Number(sum.toFixed(2));
-    }
-  },
 
   "npbhota": {
     id: "npbhota",
     ULB_NAME: "NP Bhota",
     OPTIONS: {
       WARD: ["Ward 1", "Ward 2", "Ward 3", "Ward 4", "Ward 5", "Ward 6", "Ward 7"],
-      ZONE: ["N/A", "Standard"],
-      BUILD: ["N/A", "PUCCA", "KUCHA"],
-      YEAR: ["N/A", "BEFORE 2000", "AFTER 2000"],
-      OCCUPANCY: ["N/A", "RESIDENTIAL", "COMMERCIAL"]
+      ZONE: ["N/A"],
+      BUILD: ["N/A", "PUCCA", "KUCHA", "SEMI-PUCCA"],
+      YEAR: ["N/A"],
+      OCCUPANCY: [
+        "N/A", "SELF RESIDENTIAL", "LETOUT RESIDENTIAL", "UNDER CONSTRUCTION", "CATTLE SHED", "HOTELS",
+        "SHOWROOMS", "RESTAURANT", "BARS", "BANKS", "ATMS", "CALL CENTRE", "MARRIAGE HALL", "TRAVEL AGENCY",
+        "MOBILE TOWER", "COACHING", "SHOPS", "SCHOOL", "COLLEGES", "EDUCATIONAL INSTITUTIONS", "OFFICES",
+        "HOSTEL", "HOSPITAL", "THEATRE", "CLUBS", "PAYING GUEST HOUSE", "GUEST HOUSE", "GODOWNS", "STORE",
+        "DHABAS", "STALL", "OTHERS", "PUBLIC WORSHIP", "BURIAL & CREMATION"
+      ]
     },
-    calculateEntryTax(entry) {
-      if (!entry || String(entry.yes_no ?? "").trim().toUpperCase() !== "YES") return 0;
-      const area = parseFloat(entry.area) || 0;
-      if (area <= 0) return 0;
-      const occ = String(entry.occupancy ?? "").trim().toUpperCase();
-      const rate = occ.includes("COMMERCIAL") ? 15 : 8;
-      return Number((area * rate).toFixed(2));
-    },
-    calculateFloorTotalTax(entries) {
-      if (!Array.isArray(entries)) return 0;
-      const sum = entries.reduce((acc, entry) => acc + this.calculateEntryTax(entry), 0);
-      return Number(sum.toFixed(2));
-    }
-  }
 };
 
 /* --------------------------------------------------------------------------
