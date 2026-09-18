@@ -4,7 +4,7 @@
 (function () {
 
 const TAX_OPTIONS = {
-  WARD: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"],
+  WARD: ["Ward 1", "Ward 2", "Ward 3", "Ward 4", "Ward 5", "Ward 6", "Ward 7", "Ward 8", "Ward 9", "Ward 10", "Ward 11", "Ward 12", "Ward 13"],
   ZONE: ["N/A", "A", "B"],
   BUILD: ["N/A", "PUCCA", "KUCHA", "SEMI-PUCCA"],
   YEAR: [
